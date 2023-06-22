@@ -30,7 +30,8 @@ client.whenReady().then(async () => {
                 console.log(' No issues were found!');
                 break;
             } else if (response[0] === 3) { // completed, errors with response data
-                console.log(` Error code ${response[3]} `)
+                console.log(` Error code ${response[3]} `);
+                break;
             } else {
                 throw new Error(`Unexpected response: ${response}`);
             }
