@@ -35,7 +35,7 @@ client.whenReady().then(async () => {
       } else if (response[0] === 3) { // Completed, errors with response data
         //To start the error, just set the read/write value to a number that is not 0 or 1.
         console.log(` Error code ${response[2]} `);
-        break
+        break;
       } else {
         throw new Error(`Unexpected response: ${response}`);
       }
