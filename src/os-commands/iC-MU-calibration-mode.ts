@@ -6,7 +6,7 @@ import { resolveAfter } from 'motion-master-client';
 import { client } from '../init-client';
 
 program
-.addArgument(new Argument('<ordinal>', 'Encoder ordinal 1 or 2').argParser(Number))
+  .addArgument(new Argument('<ordinal>', 'Encoder ordinal 1 or 2').argParser(Number))
   .addArgument(new Argument('<mode>', 'Set a BiSS encoder mode (0 - Configuration, 1 - Raw, 2 - Standard)').argParser(Number))
   .addArgument(new Argument('<register>', 'Encoder register to be written on').argParser(Number))
 program.parse();
@@ -17,7 +17,7 @@ const { deviceRef } = program.opts();
 
 client.whenReady().then(async () => {
   try {
-    //Configuring raw mode on encoder configured as Encoder 1
+    //Configuration mode on encoder ordinal selected
     const freezeCommand = [1, ordinal, 0, 0, 0, 0, 0, 0];
     await client.request.download(deviceRef, 0x1023, 1, freezeCommand);
 
@@ -50,9 +50,8 @@ client.whenReady().then(async () => {
         console.log(`Configured Encoder 1 to output mode: ${response[2]}`);
         break;
       } else if (response[0] === 3) { // Completed, errors with response data
-        //To start the error, just set the read/write value to a number that is not 0 or 1.
         console.log(`Error code ${response[2]} `);
-        break
+        break;
       } else {
         throw new Error(`Unexpected response: ${response}`);
       }
@@ -61,7 +60,6 @@ client.whenReady().then(async () => {
     //Changing mode:
     const ordinalMode: number = (mode * 8) + ordinal;
     const command = [1, ordinalMode, 0, 0, 0, 0, 0, 0];
-    console.log(command)
     await client.request.download(deviceRef, 0x1023, 1, command);
 
     while (true) {
@@ -74,7 +72,6 @@ client.whenReady().then(async () => {
         console.log('Switched the mode.');
         break;
       } else if (response[0] === 2) { // Completed with errors, has no response data
-        //To start the error, for the mode select a value that is bigger than 2
         console.log('Error without response.');
         break;
       } else if (response[0] === 3) { // Completed with errors with response data
