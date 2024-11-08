@@ -1,5 +1,5 @@
 import { program, Option } from 'commander';
-import { EthernetDevice, isRxPdoIndex, isTxPdoIndex } from 'motion-master-client';
+import { EthernetDevice, ParameterValueType, resolveAfter } from 'motion-master-client';
 
 program
   .addOption(
@@ -11,23 +11,27 @@ program.parse();
 
 const { baseUrl } = program.opts();
 
-const device = new EthernetDevice(baseUrl);
+const ethernetDevice = new EthernetDevice(baseUrl);
 
 (async () => {
-  // const parameters = await device.getCachedParameters();
-  // console.log(parameters);
+  const parameters = await ethernetDevice.getParameters();
+  console.log(parameters);
 
-  // const statusword = await device.upload(0x6041, 0);
-  // console.log(statusword);
+  const statusword = await ethernetDevice.upload(0x6041, 0);
+  console.log(`statusword=${statusword}`);
 
-  // const rxPdoEntries = await device.getCachedPdoEntries('rxPdoEntries', isRxPdoIndex);
-  // console.log(rxPdoEntries);
+  let polePairs: ParameterValueType = 17;
+  console.log(`setting polePairs to ${polePairs}`);
+  await ethernetDevice.download(0x2003, 1, polePairs);
+  await resolveAfter(1000);
+  polePairs = await ethernetDevice.upload(0x2003, 1);
+  console.log(`polePairs=${polePairs}`);
 
-  // const txPdoEntries = await device.getCachedPdoEntries('txPdoEntries', isTxPdoIndex);
-  // console.log(txPdoEntries);
+  const pdoValues = await ethernetDevice.receivePdoValues();
+  console.log(`pdoValues=${pdoValues}`);
 
-  const txPdoValues = await device.receivePdo();
-  console.log(txPdoValues);
+  const state = await ethernetDevice.getState();
+  console.log(`state=${state}`);
+
+  await ethernetDevice.reset();
 })();
-
-console.log(device);

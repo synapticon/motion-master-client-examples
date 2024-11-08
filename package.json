@@ -14,7 +14,7 @@
     "commander": "^12.1.0",
     "dotenv": "^16.4.5",
     "ejs": "^3.1.10",
-    "motion-master-client": "^0.0.178",
+    "motion-master-client": "^0.0.186",
     "rxjs": "^7.8.1",
     "uuid": "^10.0.0",
     "ws": "^8.17.1"
