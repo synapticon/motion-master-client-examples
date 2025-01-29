@@ -22,10 +22,21 @@ const { deviceRef } = program.opts();
 client.whenReady().then(async () => {
   dataMonitoring = client.createDataMonitoring([
     [deviceRef, 0x20F0, 0], // Timestamp
-    [deviceRef, 0x6074, 0], // Torque demand
-    [deviceRef, 0x6077, 0], // Torque actual value
-  ], 1);
+    [deviceRef, 0x6079, 0], // DC link circuit voltage
+    [deviceRef, 0x2030, 1], // Core temperature: Measured temperature
+    [deviceRef, 0x2031, 1], // Drive temperature: Measured temperature
+  ], 5000000);
 
   // To receive and collect data, you must subscribe to the returned observable.
-  dataMonitoring.start().subscribe(console.log);
+  dataMonitoring.start().subscribe({
+    next: (data) => {
+      console.log(new Date(), data);
+    },
+    error: (error) => {
+      console.error(error);
+    },
+    complete: () => {
+      console.log('Data monitoring stopped');
+    },
+  });
 });
