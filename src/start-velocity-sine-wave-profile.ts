@@ -13,25 +13,15 @@ client.whenReady().then(async () => {
   await lastValueFrom(
     client.request.setSignalGeneratorParameters({
       ...deviceRefObj,
-      // velocitySineWave: {
-      //   amplitude: 500,
-      //   frequency: 1,
-      //   repeat: true,
-      // },
-      velocityRamp: {
-        target: 1000,
-        profileAcceleration: 1000,
-        profileDeceleration: 1000,
-        sustainTime: 2000,
-      }
+      velocitySineWave: {
+        amplitude: 5000,
+        frequency: 1,
+        repeat: true,
+      },
     }, 2000),
   );
 
   client.request.startSignalGenerator({ ...deviceRefObj }, 5000).subscribe(console.log);
 
-  await resolveAfter(10000);
-
-  // await lastValueFrom(
-  //   client.request.startSignalGenerator({ ...deviceRefObj }, 50000),
-  // );
+  await resolveAfter(3000);
 }).finally(() => client.closeSockets());

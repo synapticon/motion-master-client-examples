@@ -3,13 +3,23 @@ import { program, Option } from 'commander';
 Object.assign(globalThis, { WebSocket: require('ws') });
 
 import { createMotionMasterClient } from "motion-master-client";
+import { v4 } from 'uuid';
 
 if (!process.env.MOTION_MASTER_HOSTNAME) {
   console.error('Error: MOTION_MASTER_HOSTNAME environment variable is not defined.');
   process.exit(1);
 }
 
-export const client = createMotionMasterClient(process.env.MOTION_MASTER_HOSTNAME);
+export const client = createMotionMasterClient({
+  clientId: v4(),
+  hostname: process.env.MOTION_MASTER_HOSTNAME ?? 'localhost',
+  pingSystemInterval: 500,
+  pubSubPort: 63525,
+  reqResPort: 63524,
+  clientAliveTimeout: 3000,
+  systemAliveTimeout: 2000,
+});
+client.request.setSystemClientTimeout({ timeoutMs: 3000000 }).subscribe();
 
 export function logStatus(status: {
   deviceAddress?: number | null,
