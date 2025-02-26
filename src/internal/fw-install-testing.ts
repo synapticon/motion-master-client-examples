@@ -48,21 +48,36 @@ client
                 120000
               )
             );
-            if(result.success) {
+            if (result.success) {
               success = true;
               stats[firmwareName].success++;
               console.log(`${firmwareName} installed successfully after ${attempts} attempt(s).`);
             } else {
-              stats[firmwareName].failure++;
-              console.error(`Failed to install ${firmwareName} on attempt ${attempts}. Retrying...`);
-              await resolveAfter(30000);
+              await handleFailure(firmwareName, attempts);
             }
           } catch (err) {
-            stats[firmwareName].failure++;
-            console.error(`Failed to install ${firmwareName} on attempt ${attempts}. Retrying...`);
-            await resolveAfter(30000);
+            await handleFailure(firmwareName, attempts);
           }
         }
+      };
+
+      const handleFailure = async (firmwareName: string, attempts: number): Promise<void> => {
+        stats[firmwareName].failure++;
+        console.error(`Failed to install ${firmwareName} on attempt ${attempts}. Retrieving system log...`);
+
+        try {
+          const logResult = await lastValueFrom(client.request.getSystemLog(10000));
+          const logContent = `Firmware: ${firmwareName}\nAttempt: ${attempts}\nRun Environment: ${logResult.runEnv}\n\nLog Content:\n${logResult.content}`;
+
+          const filename = `system_log_${firmwareName.replace(/\./g, '_')}_attempt_${attempts}.txt`;
+          writeFileSync(filename, logContent);
+          console.log(`System log saved to ${filename}`);
+        } catch (logErr) {
+          console.error(`Failed to retrieve system log for ${firmwareName} on attempt ${attempts}:`, logErr);
+        }
+
+        console.log(`Waiting before retrying...`);
+        await resolveAfter(30000);
       };
 
       for (let i = 0; i < 30; i++) {
