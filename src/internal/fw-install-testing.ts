@@ -68,8 +68,8 @@ client
         try {
           const logResult = await lastValueFrom(client.request.getSystemLog(10000));
           const logContent = `Firmware: ${firmwareName}\nAttempt: ${attempts}\nRun Environment: ${logResult.runEnv}\n\nLog Content:\n${logResult.content}`;
-
-          const filename = `system_log_${firmwareName.replace(/\./g, '_')}_attempt_${attempts}.txt`;
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const filename = `system_log_${firmwareName.replace(/\./g, '_')}_${timestamp}.txt`;
           writeFileSync(filename, logContent);
           console.log(`System log saved to ${filename}`);
         } catch (logErr) {
