@@ -14,44 +14,15 @@ const deviceRefs: (string | number)[] = devices
     return /^\d+$/.test(value) ? Number(value) : value;
   });
 
-// Configs per device, in order
-const configs = [
-  {
-    acceleration: 1000,
-    deceleration: 1000,
-    velocity: 100,
-    target: 1000,
-    holdingDuration: 3000,
-    skipQuickStop: false,
-    targetReachTimeout: 5000,
-    relative: false,
-    window: 10,
-    windowTime: 5,
-  },
-  {
-    acceleration: 100,
-    deceleration: 1000,
-    velocity: 100,
-    target: 1000,
-    holdingDuration: 3000,
-    skipQuickStop: false,
-    targetReachTimeout: 5000,
-    relative: false,
-    window: 10,
-    windowTime: 5,
-  },
-];
-
 client.whenReady().then(async () => {
-  const results = await Promise.all(
-    deviceRefs.map(async (deviceRef, index) => {
-      const config = configs[index] ?? configs[0];
-
+  const results = await Promise.all([
+    (async () => {
+      const deviceRef = deviceRefs[0]; // Device 1
       const dataMonitoring = client.createDataMonitoring(
         [
-          [deviceRef, 0x20F0, 0], // Timestamp
-          [deviceRef, 0x6064, 0], // Position actual value
-          [deviceRef, 0x60FC, 0], // Position demand internal value
+          [deviceRef, 0x20F0, 0],
+          [deviceRef, 0x6064, 0],
+          [deviceRef, 0x60FC, 0],
         ],
         1
       );
@@ -59,15 +30,86 @@ client.whenReady().then(async () => {
       dataMonitoring.start().subscribe();
 
       try {
-        await client.runPositionProfile(deviceRef, config);
+        await client.runPositionProfile(deviceRef, {
+          acceleration: 1,
+          deceleration: 1000,
+          velocity: 100,
+          target: 1000,
+          holdingDuration: 3000,
+          skipQuickStop: false,
+          targetReachTimeout: 5000,
+          relative: false,
+          window: 10,
+          windowTime: 5,
+        });
+
+        await client.runPositionProfile(deviceRef, {
+          acceleration: 1000,
+          deceleration: 1,
+          velocity: 100,
+          target: 1000,
+          holdingDuration: 3000,
+          skipQuickStop: false,
+          targetReachTimeout: 5000,
+          relative: false,
+          window: 10,
+          windowTime: 5,
+        });
+
         return { deviceRef, csv: dataMonitoring.csv };
       } finally {
         dataMonitoring.stop();
       }
-    })
-  );
+    })(),
+    (async () => {
+      const deviceRef = deviceRefs[1]; // Device 2
+      const dataMonitoring = client.createDataMonitoring(
+        [
+          [deviceRef, 0x20F0, 0],
+          [deviceRef, 0x6064, 0],
+          [deviceRef, 0x60FC, 0],
+        ],
+        1
+      );
 
-  results.map(({ deviceRef, csv }) =>
-    writeFileSync(`Position Profile Drive ${deviceRef}.csv`, csv)
-  );
+      dataMonitoring.start().subscribe();
+
+      try {
+        await client.runPositionProfile(deviceRef, {
+          acceleration: 100,
+          deceleration: 1000,
+          velocity: 100,
+          target: 1000,
+          holdingDuration: 3000,
+          skipQuickStop: false,
+          targetReachTimeout: 5000,
+          relative: false,
+          window: 10,
+          windowTime: 5,
+        });
+
+        await client.runPositionProfile(deviceRef, {
+          acceleration: 1000,
+          deceleration: 100,
+          velocity: 100,
+          target: 1000,
+          holdingDuration: 3000,
+          skipQuickStop: false,
+          targetReachTimeout: 5000,
+          relative: false,
+          window: 10,
+          windowTime: 5,
+        });
+
+        return { deviceRef, csv: dataMonitoring.csv };
+      } finally {
+        dataMonitoring.stop();
+      }
+    })(),
+  ]);
+
+  results.forEach(({ deviceRef, csv }) => {
+    writeFileSync(`Position Profile Drive ${deviceRef}.csv`, csv);
+  });
+
 }).finally(() => client.closeSockets());
