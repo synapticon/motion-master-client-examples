@@ -17,7 +17,7 @@ client
 
     for (let i = 0; i < iterationsNumber; i++) {
       const start = performance.now();
-      await client.request.download(deviceRef, 0x6071, 0x00, 50);
+      await client.request.download(deviceRef, 0x2012, 0x01, 0.0025);
       const duration = performance.now() - start;
       durations.push(duration);
     }
