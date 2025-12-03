@@ -16,10 +16,12 @@ client
     const durations: number[] = [];
 
     for (let i = 0; i < iterationsNumber; i++) {
+      // console.log(`Starting download iteration ${i + 1}/${iterationsNumber}...`);
       const start = performance.now();
       await client.request.download(deviceRef, 0x2012, 0x01, 0.0025);
       const duration = performance.now() - start;
       durations.push(duration);
+      // console.log(`Download iteration ${i + 1} completed in ${duration.toFixed(2)} ms.`);
     }
 
     const stats = analyzeTimeDurations(durations);
