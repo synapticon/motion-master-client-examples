@@ -22,7 +22,7 @@ client
       const start = performance.now();
       const lrsi = new LimitedRangeSystemIdentification(client, deviceRef, {
         rangeLimitMin: 1000,
-        rangeLimitEff: 1000000,
+        rangeLimit: 10000,
         modesOfOperation: ModesOfOperation.CYCLIC_SYNC_POSITION_MODE,
         targetAmplitude: 100,
         startFrequency: 1000,
