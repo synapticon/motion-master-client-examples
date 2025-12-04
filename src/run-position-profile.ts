@@ -16,7 +16,7 @@ client
       1
     );
 
-    dataMonitoring.start().subscribe();
+    dataMonitoring.start();
 
     try {
       await client.runPositionProfile(deviceRef, {
