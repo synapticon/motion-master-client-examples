@@ -13,7 +13,7 @@ client
         [deviceRef, 0x20f0, 0],
         [deviceRef, 0x6077, 0],
       ],
-      1
+      1000
     );
 
     dataMonitoring.start();

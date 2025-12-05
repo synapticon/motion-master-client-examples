@@ -25,7 +25,7 @@ client
             [deviceRef, 0x6064, 0],
             [deviceRef, 0x60fc, 0],
           ],
-          1
+          1000
         );
 
         dataMonitoring.start();
@@ -70,7 +70,7 @@ client
             [deviceRef, 0x6064, 0],
             [deviceRef, 0x60fc, 0],
           ],
-          1
+          1000
         );
 
         dataMonitoring.start();

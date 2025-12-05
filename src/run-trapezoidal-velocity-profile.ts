@@ -15,7 +15,7 @@ client
         [deviceRef, 0x606c, 0], // Velocity actual value
         [deviceRef, 0x60ff, 0], // Target velocity
       ],
-      1
+      1000
     );
 
     dataMonitoring.start();

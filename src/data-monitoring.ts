@@ -24,7 +24,7 @@ client.whenReady().then(async () => {
     [deviceRef, 0x20F0, 0], // Timestamp
     [deviceRef, 0x6074, 0], // Torque demand
     [deviceRef, 0x6077, 0], // Torque actual value
-  ], 1);
+  ], 1000);
 
   // To receive and collect data, you must subscribe to the returned observable.
   dataMonitoring.start().subscribe(console.log);
