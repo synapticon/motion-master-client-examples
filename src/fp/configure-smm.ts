@@ -1,5 +1,9 @@
 /**
  * This script configures the SMM (Safety Motion Module).
+ * 
+ * The SMM parameter configuration is loaded from a local CSV file:
+ *   src/fp/smm.config.csv
+ * 
  * It reads the configuration from a CSV file, logs into the SMM device,
  * transmits parameters, and verifies them in groups.
  * Finally, it reads the generated report file and validates the configuration.
