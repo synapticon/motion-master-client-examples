@@ -24,6 +24,8 @@ client.whenReady().then(async () => {
     [deviceRef, 0x20F0, 0], // Timestamp
     [deviceRef, 0x6074, 0], // Torque demand
     [deviceRef, 0x6077, 0], // Torque actual value
+    [deviceRef, 0x606C, 0], // Velocity actual value
+    [deviceRef, 0x6064, 0], // Position actual value
   ], 1000);
 
   // To receive and collect data, you must subscribe to the returned observable.
