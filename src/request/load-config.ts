@@ -16,7 +16,7 @@ client
 
       console.log("Loading configuration...");
       const content = readFileSync("src/request/config.csv", "utf-8");
-      await lastValueFrom(client.request.loadConfig(deviceRef, content, { count: 10, delay: 500 }));
+      await lastValueFrom(client.request.loadConfig(deviceRef, content, undefined, { count: 10, delay: 500 }));
       console.log("done.");
 
       value = await client.request.upload(deviceRef, 0x2003, 4);
