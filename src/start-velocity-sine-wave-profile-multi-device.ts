@@ -46,7 +46,9 @@ client
     );
 
     for (const position of positions) {
-      client.request.startSignalGenerator({ devicePosition: position }, 5000).subscribe();
+      client.request.startSignalGenerator({ devicePosition: position }, 5000).subscribe({
+        error: (err) => console.error(`startSignalGenerator error on position ${position}:`, err),
+      });
     }
 
     // keep the program running for 5 hours to let the profile execute
