@@ -1,0 +1,55 @@
+# A long-lived container for running the example scripts, with this repository
+# overlaid on top of the image.
+#
+#   docker compose up -d                     # start it (named motion-master-client)
+#   docker compose exec client sh            # get a shell inside it
+#   docker compose exec client npx ts-node src/request/get-devices.promise.ts
+#   docker compose stop / docker compose start   # keeps everything
+#   docker compose down                      # removes the container, keeps node_modules
+#
+# Motion Master itself is NOT in here. This image is only the client: it talks
+# WebSockets to a master that owns the EtherCAT NIC. On macOS the master has to
+# run natively, because a container cannot see the Mac's interfaces at all — not
+# even with --privileged --network host, since Docker's "host" is the Linux VM.
+services:
+  client:
+    build: .
+    image: mmce
+    container_name: motion-master-client
+
+    # The image has no long-running process of its own — every example is a
+    # short script — so hold the container open and use `docker compose exec`.
+    command: ["tail", "-f", "/dev/null"]
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+    working_dir: /usr/src/app
+    volumes:
+      # The repo overlaid on the image: edit on the Mac, run inside the
+      # container, and anything a script writes (CSVs, PNGs) lands straight back
+      # in the working tree rather than disappearing with the container.
+      - .:/usr/src/app
+
+      # ...except node_modules. The bind mount above would otherwise cover the
+      # image's Linux dependencies with the macOS-arm64 ones from the host. A
+      # named volume is seeded from the image on first start and then persists,
+      # so `npm install` inside the container survives stop/start and even
+      # `docker compose down` (use `down -v` to discard it).
+      - node_modules:/usr/src/app/node_modules
+
+    environment:
+      # Never "localhost" in here: that is the container itself. Docker Desktop
+      # and OrbStack resolve host.docker.internal to the Mac. Override for a
+      # master on another machine:
+      #   MOTION_MASTER_HOSTNAME=192.168.1.112 docker compose up -d
+      MOTION_MASTER_HOSTNAME: "${MOTION_MASTER_HOSTNAME:-host.docker.internal}"
+      ROARR_LOG: "${ROARR_LOG:-}"
+
+    # Needed on a Linux host, where host.docker.internal is not built in;
+    # harmless on macOS.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  node_modules:

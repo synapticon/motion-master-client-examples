@@ -1,4 +1,9 @@
 {
+  // Only src/ is a build input. Without this, tsc falls back to globbing '**/*',
+  // which pulls in any .ts file elsewhere in the repo (scratch scripts at the
+  // root, test-motion-master-macOS/) and fails with TS6059 because those sit
+  // outside "rootDir". Scripts outside src/ are still runnable with ts-node.
+  "include": ["src"],
   "compilerOptions": {
     /* Visit https://aka.ms/tsconfig to read more about this file */
 
