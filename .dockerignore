@@ -1,0 +1,18 @@
+# Host-built dependencies must never be copied in: they are resolved for macOS
+# arm64, the image runs Linux, and they would shadow the ones npm installs inside
+# the container. 108 MB of pointless build context, too.
+node_modules
+dist
+
+# Host-specific and secret
+.env
+.env.*
+
+# Recorded test output (CSVs and PNGs run to tens of MB)
+test-motion-master-macOS/*.csv
+test-motion-master-macOS/*.png
+
+.git
+.gitignore
+.DS_Store
+**/.DS_Store

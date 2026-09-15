@@ -131,3 +131,12 @@ dist
 
 tmp/
 data.csv
+
+# Local macOS timing/test scripts and their recordings. Kept out of the repo
+# deliberately: they are a scratch area for measuring one machine, and the CSVs
+# and PNGs they produce run to tens of megabytes.
+test-motion-master-macOS/
+
+# macOS Finder metadata
+.DS_Store
+**/.DS_Store

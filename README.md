@@ -4,6 +4,26 @@ This repository provides TypeScript/JavaScript examples for interacting with Syn
 
 ## Building
 
+### Node on the PATH
+
+If `npx` is not found, Node is probably installed through nvm, which is only available once its
+init script has been sourced. Once per terminal session:
+
+```console
+source ~/.nvm/nvm.sh && nvm use --lts
+```
+
+To have it loaded automatically, add nvm's init lines to your shell profile:
+
+```console
+echo 'export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"' >> ~/.zshrc
+```
+
+Running the examples in Docker (see below) sidesteps this entirely — the image brings its own
+Node.
+
+### Dependencies
+
 Clone this repository and install its dependencies:
 
 ```console
@@ -77,6 +97,95 @@ To monitor output data and save it to both stdout and a file (data.csv), use:
 ```console
 node ./dist/start-monitoring.js --device-ref=1 | tee data.csv
 ```
+
+## Running in Docker
+
+`docker-compose.yml` defines a long-lived container named **`motion-master-client`** with this
+repository mounted into it, so you edit files on your machine and run them inside the
+container. It supersedes running `docker build` / `docker run` by hand — Compose still builds
+from the `Dockerfile`, it just wires up the mounts, the hostname and the restart policy for
+you.
+
+Note that this container is only the **client**. Motion Master itself needs the EtherCAT NIC
+and runs outside the container. On macOS it has to run natively on the host: a container there
+lives inside a Linux VM and cannot see the Mac's network interfaces at all, not even with
+`--privileged --network host`.
+
+Run all of the following from the repository root.
+
+Start it, building the image on first use:
+
+```console
+docker compose up -d
+```
+
+Run a script inside it:
+
+```console
+docker compose exec client npx ts-node src/request/get-devices.promise.ts
+```
+
+Compiled JavaScript works too, and is faster to start:
+
+```console
+docker compose exec client node dist/request/get-devices.promise.js
+```
+
+Open an interactive shell:
+
+```console
+docker compose exec client sh
+```
+
+Stop and resume the container. Both preserve everything — the repository is a bind mount, and
+packages installed inside live in a named volume:
+
+```console
+docker compose stop
+```
+
+```console
+docker compose start
+```
+
+Remove the container. The `node_modules` volume survives this; add `-v` to delete that too:
+
+```console
+docker compose down
+```
+
+Snapshot the container into an image, for a restore point before `down` or an upgrade:
+
+```console
+docker commit motion-master-client mmce:backup
+```
+
+### Hostname inside the container
+
+`MOTION_MASTER_HOSTNAME` defaults to `host.docker.internal`, which resolves to the machine
+running Docker. Never use `localhost` here — inside a container that is the container itself.
+Point it at another machine by setting it before starting:
+
+```console
+MOTION_MASTER_HOSTNAME=192.168.1.112 docker compose up -d
+```
+
+A `.env` file in the repository root is deliberately **not** copied into the image, so pass the
+hostname this way instead.
+
+### What persists, and what does not
+
+| State | Where it lives | Survives `stop`/`start` | Survives `down` |
+| --- | --- | --- | --- |
+| Your source files and any output a script writes | bind mount, i.e. your working tree | yes | yes |
+| Packages installed inside the container | named volume `node_modules` | yes | yes, unless `down -v` |
+| Anything else in the container filesystem | container layer | yes | no — `docker commit` first |
+
+Because the repository is mounted, files a script writes (recorded CSVs, generated plots) appear
+directly in your working tree rather than disappearing with the container.
+
+`node_modules` is deliberately kept out of the mount: the host's copy is built for the host's
+platform, and letting it shadow the image's Linux dependencies breaks any native module.
 
 ## Developing
 
