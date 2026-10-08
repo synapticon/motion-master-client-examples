@@ -1,6 +1,11 @@
 import { Argument, program } from "commander";
 import { last, switchMap, take, tap } from "rxjs";
-import { computeCirculoEncoderCalibrationResult, makeDeviceRefObj } from "motion-master-client";
+import {
+  computeCirculoEncoderCalibrationResult,
+  findSomanetProductById,
+  getCirculoEncoderMaxPermissiblePhaseError,
+  makeDeviceRefObj,
+} from "motion-master-client";
 
 import { client } from "../init-client";
 
@@ -20,39 +25,45 @@ const [encoderOrdinal] = program.processedArgs as [number];
 client.onceReady$
   .pipe(
     take(1), // Ensure we only proceed once
-    // Stop the device before starting calibration
-    switchMap(() => client.request.stopDevice(deviceRefObj, requestTimeout, messageId)),
-    // Start the calibration procedure after the device is stopped
-    switchMap(() =>
-      client.request
-        .startCirculoEncoderNarrowAngleCalibrationProcedure(
-          { ...deviceRefObj, encoderOrdinal },
-          requestTimeout,
-          messageId
-        )
-        .pipe(
-          tap((status) => {
-            if (status.progress) {
-              console.log(
-                `Calibration iteration ${status.progress.iteration} completed. Number of data points: ${
-                  status.progress.position?.length ?? 0
-                }`
-              );
+    // Read the hardware description to determine whether the device is a Circulo 7 or Circulo 9
+    switchMap(() => client.request.getHardwareDescription(deviceRef, requestTimeout, messageId)),
+    switchMap((hardwareDescription) => {
+      const productGroup = findSomanetProductById(hardwareDescription)?.group ?? "unknown device";
+      const maxPermissiblePhaseError = getCirculoEncoderMaxPermissiblePhaseError(hardwareDescription);
+      console.log(`Detected ${productGroup} (max permissible phase error: ${maxPermissiblePhaseError})`);
 
-              // Compute and log the calibration result
-              const result = computeCirculoEncoderCalibrationResult(
-                status.progress?.position ?? undefined,
-                status.progress?.phaseError ?? undefined
-              );
+      // Stop the device, then start the calibration procedure
+      return client.request.stopDevice(deviceRefObj, requestTimeout, messageId).pipe(
+        switchMap(() =>
+          client.request.startCirculoEncoderNarrowAngleCalibrationProcedure(
+            { ...deviceRefObj, encoderOrdinal },
+            requestTimeout,
+            messageId
+          )
+        ),
+        tap((status) => {
+          if (status.progress) {
+            console.log(
+              `Calibration iteration ${status.progress.iteration} completed. Number of data points: ${
+                status.progress.position?.length ?? 0
+              }`
+            );
 
-              if (result) {
-                console.log(`${result.meaning} (${result.value}%)`);
-              }
+            // Compute and log the calibration result
+            const result = computeCirculoEncoderCalibrationResult(
+              status.progress?.position ?? undefined,
+              status.progress?.phaseError ?? undefined,
+              maxPermissiblePhaseError
+            );
+
+            if (result) {
+              console.log(`${result.meaning} (${result.value}%)`);
             }
-          }),
-          last() // Wait for the calibration procedure to complete
-        )
-    ),
+          }
+        }),
+        last() // Wait for the calibration procedure to complete
+      );
+    }),
     // After calibration, start offset detection
     switchMap(() =>
       client.request.startOffsetDetection(deviceRefObj, requestTimeout, messageId).pipe(
