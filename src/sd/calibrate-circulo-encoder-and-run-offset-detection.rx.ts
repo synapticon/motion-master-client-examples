@@ -25,12 +25,16 @@ const [encoderOrdinal] = program.processedArgs as [number];
 client.onceReady$
   .pipe(
     take(1), // Ensure we only proceed once
-    // Read the hardware description to determine whether the device is a Circulo 7 or Circulo 9
+    // Read the hardware description for a fallback limit, used only with Motion Master older than 5.8.3,
+    // which doesn't report the limit of the measured ring
     switchMap(() => client.request.getHardwareDescription(deviceRef, requestTimeout, messageId)),
     switchMap((hardwareDescription) => {
+      if (!hardwareDescription) {
+        console.warn("Hardware description could not be read; the fallback limit may not match the ring.");
+      }
       const productGroup = findSomanetProductById(hardwareDescription)?.group ?? "unknown device";
       const maxPermissiblePhaseError = getCirculoEncoderMaxPermissiblePhaseError(hardwareDescription);
-      console.log(`Detected ${productGroup} (max permissible phase error: ${maxPermissiblePhaseError})`);
+      console.log(`Detected ${productGroup} (fallback max permissible phase error: ${maxPermissiblePhaseError})`);
 
       // Stop the device, then start the calibration procedure
       return client.request.stopDevice(deviceRefObj, requestTimeout, messageId).pipe(
@@ -60,7 +64,9 @@ client.onceReady$
             );
 
             if (result) {
-              console.log(`${result.meaning} (${result.value}%)`);
+              // Only the final iteration rates the finished calibration
+              const final = status.progress.final ? " [final]" : "";
+              console.log(`${result.meaning} (${result.value}%, limit ${limit})${final}`);
             }
           }
         }),
