@@ -49,11 +49,14 @@ client.onceReady$
               }`
             );
 
+            // Prefer the limit reported by Motion Master; fall back to the one derived from the hardware description
+            const limit = status.progress.maxPermissiblePhaseError || maxPermissiblePhaseError;
+
             // Compute and log the calibration result
             const result = computeCirculoEncoderCalibrationResult(
               status.progress?.position ?? undefined,
               status.progress?.phaseError ?? undefined,
-              maxPermissiblePhaseError
+              limit
             );
 
             if (result) {
