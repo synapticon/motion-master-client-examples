@@ -1,11 +1,6 @@
 import { Argument, program } from "commander";
 import { last, switchMap, take, tap } from "rxjs";
-import {
-  computeCirculoEncoderCalibrationResult,
-  findSomanetProductById,
-  getCirculoEncoderMaxPermissiblePhaseError,
-  makeDeviceRefObj,
-} from "motion-master-client";
+import { computeCirculoEncoderCalibrationProgressResult, makeDeviceRefObj } from "motion-master-client";
 
 import { client } from "../init-client";
 
@@ -25,54 +20,38 @@ const [encoderOrdinal] = program.processedArgs as [number];
 client.onceReady$
   .pipe(
     take(1), // Ensure we only proceed once
-    // Read the hardware description for a fallback limit, used only with Motion Master older than 5.8.3,
-    // which doesn't report the limit of the measured ring
-    switchMap(() => client.request.getHardwareDescription(deviceRef, requestTimeout, messageId)),
-    switchMap((hardwareDescription) => {
-      if (!hardwareDescription) {
-        console.warn("Hardware description could not be read; the fallback limit may not match the ring.");
-      }
-      const productGroup = findSomanetProductById(hardwareDescription)?.group ?? "unknown device";
-      const maxPermissiblePhaseError = getCirculoEncoderMaxPermissiblePhaseError(hardwareDescription);
-      console.log(`Detected ${productGroup} (fallback max permissible phase error: ${maxPermissiblePhaseError})`);
+    // Stop the device before starting calibration
+    switchMap(() => client.request.stopDevice(deviceRefObj, requestTimeout, messageId)),
+    // Start the calibration procedure after the device is stopped
+    switchMap(() =>
+      client.request
+        .startCirculoEncoderNarrowAngleCalibrationProcedure(
+          { ...deviceRefObj, encoderOrdinal },
+          requestTimeout,
+          messageId
+        )
+        .pipe(
+          tap((status) => {
+            if (status.progress) {
+              console.log(
+                `Calibration iteration ${status.progress.iteration} completed. Number of data points: ${
+                  status.progress.position?.length ?? 0
+                }`
+              );
 
-      // Stop the device, then start the calibration procedure
-      return client.request.stopDevice(deviceRefObj, requestTimeout, messageId).pipe(
-        switchMap(() =>
-          client.request.startCirculoEncoderNarrowAngleCalibrationProcedure(
-            { ...deviceRefObj, encoderOrdinal },
-            requestTimeout,
-            messageId
-          )
-        ),
-        tap((status) => {
-          if (status.progress) {
-            console.log(
-              `Calibration iteration ${status.progress.iteration} completed. Number of data points: ${
-                status.progress.position?.length ?? 0
-              }`
-            );
+              // Compute and log the calibration result against the limit of the measured ring
+              const result = computeCirculoEncoderCalibrationProgressResult(status.progress);
 
-            // Prefer the limit reported by Motion Master; fall back to the one derived from the hardware description
-            const limit = status.progress.maxPermissiblePhaseError || maxPermissiblePhaseError;
-
-            // Compute and log the calibration result
-            const result = computeCirculoEncoderCalibrationResult(
-              status.progress?.position ?? undefined,
-              status.progress?.phaseError ?? undefined,
-              limit
-            );
-
-            if (result) {
-              // Only the final iteration rates the finished calibration
-              const final = status.progress.final ? " [final]" : "";
-              console.log(`${result.meaning} (${result.value}%, limit ${limit})${final}`);
+              if (result) {
+                // Only the final iteration rates the finished calibration
+                const final = status.progress.final ? " [final]" : "";
+                console.log(`${result.meaning} (${result.value}%, limit ${result.maxPermissiblePhaseError})${final}`);
+              }
             }
-          }
-        }),
-        last() // Wait for the calibration procedure to complete
-      );
-    }),
+          }),
+          last() // Wait for the calibration procedure to complete
+        )
+    ),
     // After calibration, start offset detection
     switchMap(() =>
       client.request.startOffsetDetection(deviceRefObj, requestTimeout, messageId).pipe(
