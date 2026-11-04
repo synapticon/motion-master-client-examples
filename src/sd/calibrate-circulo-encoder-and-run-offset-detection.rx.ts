@@ -1,6 +1,6 @@
 import { Argument, program } from "commander";
 import { last, switchMap, take, tap } from "rxjs";
-import { computeCirculoEncoderCalibrationResult, makeDeviceRefObj } from "motion-master-client";
+import { computeCirculoEncoderCalibrationProgressResult, makeDeviceRefObj } from "motion-master-client";
 
 import { client } from "../init-client";
 
@@ -39,14 +39,13 @@ client.onceReady$
                 }`
               );
 
-              // Compute and log the calibration result
-              const result = computeCirculoEncoderCalibrationResult(
-                status.progress?.position ?? undefined,
-                status.progress?.phaseError ?? undefined
-              );
+              // Compute and log the calibration result against the limit of the measured ring
+              const result = computeCirculoEncoderCalibrationProgressResult(status.progress);
 
               if (result) {
-                console.log(`${result.meaning} (${result.value}%)`);
+                // Only the final iteration rates the finished calibration
+                const final = status.progress.final ? " [final]" : "";
+                console.log(`${result.meaning} (${result.value}%, limit ${result.maxPermissiblePhaseError})${final}`);
               }
             }
           }),
