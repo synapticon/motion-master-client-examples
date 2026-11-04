@@ -7,9 +7,11 @@
  * The sequence, one step at a time, each step only after the previous one has completed:
  *
  *   1. logout, then login for parameter download with the old password (`reloginToSmmForParameterDownload`)
- *   2. change password (`changeSmmPassword`): the SMM is restarted only if it accepted the change, and the call
- *      completes 3 seconds after the restart, so the next command does not land in the reboot
- *   3. logout, on success and on failure alike
+ *   2. change password (`changeSmmPassword`): only if the SMM accepted the change, the client logs out, then restarts
+ *      the SMM, and completes 3 seconds after the restart, so the next command does not land in the reboot. The logout
+ *      must come before the restart: restarting the SMM with the session still open makes it reject both the new and
+ *      the old password. After the call the session is closed; log in with the new password to continue.
+ *   3. logout: needed when the change was rejected (the session is still open), harmless after a successful change
  *
  * What must be isolated:
  *
@@ -18,7 +20,8 @@
  *   no OBLAC Drives, no monitoring tool that reads SMM parameters.
  * - Do not chain SMM calls without waiting for each one to finish, and do not lower the command timeouts. A timeout
  *   on the client does not stop the command on the drive; the next command would then land on a busy SMM.
- * - Do not trigger an SMM restart yourself after the change. The client does that, and only when the SMM accepted it.
+ * - Do not trigger an SMM restart yourself after the change. The client does that, after the logout, and only when the
+ *   SMM accepted it. Requires motion-master-client 0.0.422 or later; earlier versions restart before the logout.
  *
  * Passwords are 4 to 24 printable ASCII characters. The client rejects anything else instead of truncating it.
  *
