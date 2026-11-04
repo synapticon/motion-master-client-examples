@@ -4,6 +4,26 @@ This repository provides TypeScript/JavaScript examples for interacting with Syn
 
 ## Building
 
+### Node on the PATH
+
+If `npx` is not found, Node is probably installed through nvm, which is only available once its
+init script has been sourced. Once per terminal session:
+
+```console
+source ~/.nvm/nvm.sh && nvm use --lts
+```
+
+To have it loaded automatically, add nvm's init lines to your shell profile:
+
+```console
+echo 'export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"' >> ~/.zshrc
+```
+
+Running the examples in Docker (see below) sidesteps this entirely — the image brings its own
+Node.
+
+### Dependencies
+
 Clone this repository and install its dependencies:
 
 ```console
@@ -76,6 +96,113 @@ To monitor output data and save it to both stdout and a file (data.csv), use:
 
 ```console
 node ./dist/start-monitoring.js --device-ref=1 | tee data.csv
+```
+
+## Running in Docker
+
+`docker-compose.yml` defines a long-lived container named **`motion-master-client`** with this
+repository mounted into it, so you edit files on your machine and run them inside the
+container. It supersedes running `docker build` / `docker run` by hand — Compose still builds
+from the `Dockerfile`, it just wires up the mounts and the hostname for you.
+
+Note that this container is only the **client**. Motion Master itself needs the EtherCAT NIC
+and runs outside the container. With Docker Desktop or OrbStack on macOS it has to run natively
+on the Mac: a container there lives inside a Linux VM and cannot see the Mac's network
+interfaces at all, not even with `--privileged --network host`.
+
+Run all of the following from the repository root.
+
+Start it, building the image on first use:
+
+```console
+docker compose up -d
+```
+
+Run a script inside it:
+
+```console
+docker compose exec client npx ts-node src/request/get-devices.promise.ts
+```
+
+Compiled JavaScript is faster to start. The repository mount hides the `dist/` folder built into
+the image, so build once inside the container first (and again after changing the sources). The
+output lands in your working tree:
+
+```console
+docker compose exec client npm run build
+```
+
+```console
+docker compose exec client node dist/request/get-devices.promise.js
+```
+
+Open an interactive shell:
+
+```console
+docker compose exec client sh
+```
+
+Stop and resume the container. Both preserve everything — the repository is a bind mount, and
+packages installed inside live in a named volume:
+
+```console
+docker compose stop
+```
+
+```console
+docker compose start
+```
+
+Remove the container. The `node_modules` volume survives this; add `-v` to delete that too:
+
+```console
+docker compose down
+```
+
+### Hostname inside the container
+
+`MOTION_MASTER_HOSTNAME` defaults to `host.docker.internal`, which resolves to the machine
+running Docker. Never use `localhost` here — inside a container that is the container itself.
+
+Compose takes the value from your shell or from the `.env` file in the repository root, the
+same file the scripts read on the host. If your `.env` says `localhost` for running scripts on
+the host, override it for the container, or point it at another machine:
+
+```console
+MOTION_MASTER_HOSTNAME=192.168.1.112 docker compose up -d
+```
+
+The value is fixed when the container is created, and inside the container it wins over
+`.env`. After changing it, run `docker compose up -d` again, which recreates the container;
+`docker compose start` and `restart` keep the old value. `ROARR_LOG` is passed through the same
+way, and only when it is set.
+
+### What persists, and what does not
+
+| State | Where it lives | Survives `stop`/`start` | Survives `down` |
+| --- | --- | --- | --- |
+| Your source files, `dist/` and any output a script writes | bind mount, i.e. your working tree | yes | yes |
+| Packages installed inside the container | named volume `node_modules` | yes | yes, unless `down -v` |
+| Anything else in the container filesystem | container layer | yes | no |
+
+Because the repository is mounted, files a script writes (recorded CSVs, generated plots) appear
+directly in your working tree rather than disappearing with the container.
+
+`node_modules` is deliberately kept out of the mount: the host's copy is built for the host's
+platform, and letting it shadow the image's Linux dependencies breaks any native module.
+
+The `node_modules` volume is filled from the image only when it is first created. After a
+change to `package.json`, for example a newer `motion-master-client`, rebuilding the image does
+not update it. Install the new packages inside the container:
+
+```console
+docker compose exec client npm install
+```
+
+or start over with fresh packages:
+
+```console
+docker compose down -v && docker compose up -d --build
 ```
 
 ## Developing

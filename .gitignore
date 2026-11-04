@@ -131,3 +131,12 @@ dist
 
 tmp/
 data.csv
+
+# Local scratch directory for timing scripts and their recordings, which some
+# machines keep next to the examples. Not part of the repository: it measures
+# one machine, and its CSVs and PNGs run to tens of megabytes.
+test-motion-master-macOS/
+
+# macOS Finder metadata
+.DS_Store
+**/.DS_Store

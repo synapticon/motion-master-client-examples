@@ -1,0 +1,16 @@
+# Dependencies and build output are produced inside the image. A copy from the
+# host is resolved for the host's OS and CPU and would shadow the image's own.
+node_modules
+dist
+
+# Host-specific and secret
+.env
+.env.*
+
+# Local scratch directory, not part of the repository (see .gitignore)
+test-motion-master-macOS
+
+.git
+.gitignore
+.DS_Store
+**/.DS_Store
