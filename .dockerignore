@@ -1,6 +1,5 @@
-# Host-built dependencies must never be copied in: they are resolved for macOS
-# arm64, the image runs Linux, and they would shadow the ones npm installs inside
-# the container. 108 MB of pointless build context, too.
+# Dependencies and build output are produced inside the image. A copy from the
+# host is resolved for the host's OS and CPU and would shadow the image's own.
 node_modules
 dist
 
@@ -8,9 +7,8 @@ dist
 .env
 .env.*
 
-# Recorded test output (CSVs and PNGs run to tens of MB)
-test-motion-master-macOS/*.csv
-test-motion-master-macOS/*.png
+# Local scratch directory, not part of the repository (see .gitignore)
+test-motion-master-macOS
 
 .git
 .gitignore
