@@ -9,7 +9,10 @@
  * Finally, it reads the generated report file and validates the configuration.
  *
  * Usage:
- *   npx ts-node src/fp/configure-smm.ts --device-ref=1 --username=Test --password=SomanetSMM
+ *   npx ts-node src/fp/configure-smm.ts --device-ref=1 --username=<your name> --password=SomanetSMM
+ *
+ * The username is mandatory and must be the name of the person who runs the script, 4 to 24 printable ASCII
+ * characters. The SMM writes it into the safety parameters report, which records who configured the SMM.
  *
  * ---
  *
@@ -55,7 +58,7 @@ import { lastValueFrom } from "rxjs";
 
 import { client } from "../init-client";
 
-program.addOption(new Option("-u, --username <value>").default("Test"));
+program.addOption(new Option("-u, --username <value>").makeOptionMandatory());
 program.addOption(new Option("-p, --password <value>").default("SomanetSMM"));
 
 program.parse();
