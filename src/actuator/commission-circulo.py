@@ -166,9 +166,9 @@ def stop_drive(api: Api, device_ref: str) -> bool:
 def main():
     parser = argparse.ArgumentParser(description="Commission a SOMANET Circulo actuator through the HTTP API.",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    # argparse.SUPPRESS keeps "(default: None)" out of --help.
     parser.add_argument("config_file", type=Path, help="configuration file to load, for example a config.csv exported with OBLAC Drives")
     parser.add_argument("--device-ref", default="0", help="position, address or serial number of the drive (0 is the first drive)")
+    # argparse.SUPPRESS keeps "(default: None)" out of --help.
     parser.add_argument("--encoders", type=encoder_ordinals, required=True, default=argparse.SUPPRESS, help="comma-separated ordinals of the integrated encoders to calibrate, in that order")
     parser.add_argument("--merge", action="store_true", help="merge the file into the configuration on the drive instead of replacing it")
     parser.add_argument("--api", default="http://localhost:63526/api", help="HTTP API base URL")

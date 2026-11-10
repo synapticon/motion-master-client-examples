@@ -109,7 +109,7 @@ client
     step("5. Saving the configuration...");
     await lastValueFrom(client.request.saveConfig(deviceRef));
 
-    console.log("Done.");
+    step("Done.");
   })
   .catch((err: unknown) => {
     // After Ctrl-C the SIGINT handler says how the run ended.
