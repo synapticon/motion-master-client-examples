@@ -72,7 +72,10 @@ torque, velocity and acceleration as 0x6081 and 0x6083 take them.
   `MOTION_MASTER_HOSTNAME`, see the main README.
 - The Python scripts talk to the HTTP API on `http://localhost:63526/api` (change with `--api`). The OBLAC Drives
   native app starts it on that port. Start Motion Master in OBLAC Drives before running a script.
-- Run one script per actuator. `--device-ref` takes the position in the chain, the address or the serial number.
+- The Python scripts need HTTP API 0.0.418 or newer. `GET /api/version` shows the version, for example
+  `curl http://localhost:63526/api/version`.
+- Each script drives one drive. Run one per actuator, in parallel if needed. `--device-ref` takes the position in
+  the chain, the address or the serial number.
 
 ## Differences between the two
 
