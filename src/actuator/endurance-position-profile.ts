@@ -4,54 +4,58 @@
  *
  * The actuator moves between its position at the start and that position plus --distance, waiting --dwell
  * milliseconds at each end. The drive stays in Operation Enabled for the whole run. Both targets are absolute,
- * so the actuator does not drift away over thousands of moves.
+ * so the actuator does not drift away over thousands of moves. --distance, --velocity and --acceleration have no
+ * default, because what a value means depends on how the actuator is configured.
  *
  * Motion Master streams the following error (0x60F4), the torque actual value (0x6077) and the position actual
- * value (0x6064) every --interval microseconds. The script keeps no samples in memory: it writes one line per
- * move to the summary file (largest following error, largest and RMS torque), and every sample to --samples
- * only when that option is given. At 1 ms that is about 170 million lines in 48 hours, so raise --interval
- * for a raw log, for example to 10000 (10 ms).
+ * value (0x6064) every millisecond. The script keeps no samples in memory: it writes one line per move to the
+ * summary file (largest following error, largest and RMS torque), and every sample to --samples only when that
+ * option is given. That file grows by about 170 million lines in 48 hours.
  *
  * Units are the drive's: the following error in position units (increments unless 0x60A8 says otherwise),
  * the torque in per mille of the rated torque, velocity and acceleration as 0x6081 and 0x6083 take them.
  *
- * Ctrl-C ends the run after the current move. If a move fails, the drive faults or the target is not reached
- * in time, the script quick stops the drive, prints the error report and exits with code 1.
+ * Before every move but the first, the script checks that the drive is still in Operation Enabled. If something
+ * else stopped it (Stop in OBLAC Drives, another client, a fault), the run ends: the next move would enable the
+ * drive again.
+ *
+ * Ctrl-C ends the run after the current move and quick stops the drive. Ctrl-C again quick stops it at once and
+ * quits. If a move fails, the drive faults or the target is not reached in time, the script quick stops the drive,
+ * prints the last error report and exits with code 1.
  *
  * Usage:
- *   npx ts-node src/actuator/endurance-position-profile.ts --device-ref=0 --distance=100000 --velocity=1000
- *   npx ts-node src/actuator/endurance-position-profile.ts --device-ref=0 --hours=0.1 --samples=samples.csv --interval=10000
+ *   npx ts-node src/actuator/endurance-position-profile.ts --device-ref=0 --distance=100000 --velocity=1000 --acceleration=10000
+ *   npx ts-node src/actuator/endurance-position-profile.ts --device-ref=0 --distance=100000 --velocity=1000 --acceleration=10000 --hours=0.1 --samples=samples.csv
  */
-import { Option, program } from "commander";
+import { InvalidArgumentError, Option, program } from "commander";
 import { createWriteStream, WriteStream } from "fs";
-import { Subscription } from "rxjs";
-import { DeviceRef } from "motion-master-client";
+import { lastValueFrom, Subscription } from "rxjs";
+import { Cia402State, DeviceRef, resolveAfter } from "motion-master-client";
 
 import { client } from "../init-client";
 
 const number = (value: string) => {
   const n = Number(value);
   if (Number.isNaN(n)) {
-    throw new Error(`Not a number: ${value}`);
+    throw new InvalidArgumentError("Not a number.");
   }
   return n;
 };
 
 program
   .addOption(new Option("--hours <n>", "how long to run").argParser(number).default(48))
-  .addOption(new Option("--distance <n>", "distance of one move, in position units").argParser(number).default(100000))
-  .addOption(new Option("--velocity <n>", "profile velocity (0x6081)").argParser(number).default(1000))
-  .addOption(new Option("--acceleration <n>", "profile acceleration (0x6083)").argParser(number).default(10000))
+  .addOption(new Option("--distance <n>", "distance of one move, in position units").argParser(number).makeOptionMandatory())
+  .addOption(new Option("--velocity <n>", "profile velocity (0x6081)").argParser(number).makeOptionMandatory())
+  .addOption(new Option("--acceleration <n>", "profile acceleration (0x6083)").argParser(number).makeOptionMandatory())
   .addOption(new Option("--deceleration <n>", "profile deceleration (0x6084)").argParser(number).default(10000))
   .addOption(new Option("--dwell <ms>", "how long to wait at each end").argParser(number).default(500))
   .addOption(new Option("--move-timeout <ms>", "how long one move may take").argParser(number).default(30000))
-  .addOption(new Option("--interval <us>", "monitoring interval in microseconds").argParser(number).default(1000))
   .addOption(new Option("--summary <file>", "one line per move").default(`endurance-${timestamp()}.csv`))
   .addOption(new Option("--samples <file>", "every monitored sample (large)"));
 
 program.parse();
 
-const { deviceRef, hours, distance, velocity, acceleration, deceleration, dwell, moveTimeout, interval, summary, samples } =
+const { deviceRef, hours, distance, velocity, acceleration, deceleration, dwell, moveTimeout, summary, samples } =
   program.opts();
 
 /** The largest following error and torque of the move that is running. */
@@ -74,19 +78,28 @@ class MoveStats {
 }
 
 let stopRequested = false;
-process.on("SIGINT", () => {
+process.on("SIGINT", async () => {
   if (stopRequested) {
+    // The move that is running would end with the drive still enabled. Quick stop it, but do not wait for long.
+    console.log("\nQuick stopping the drive...");
+    await Promise.race([client.request.quickStop(deviceRef).catch(() => undefined), resolveAfter(3000)]);
     process.exit(1);
   }
   stopRequested = true;
-  console.log("\nStopping after the current move (Ctrl-C again to quit at once)...");
+  console.log("\nStopping after the current move (Ctrl-C again to quick stop at once)...");
 });
 
 client
   .whenReady()
   .then(() => run(deviceRef))
-  .catch((err: unknown) => {
+  .catch(async (err: unknown) => {
     console.error(`FAILED: ${err instanceof Error ? err.message : err}`);
+    // The drive is quick stopped by now. This is the last report the drive logged, so after a timeout without
+    // a fault it can be an older one.
+    const report = await client.request.upload<string>(deviceRef, 0x203f, 1).catch(() => undefined);
+    if (report) {
+      console.error(`Last error report (0x203F:01): ${report}`);
+    }
     process.exitCode = 1;
   })
   .finally(() => client.closeSockets());
@@ -103,6 +116,7 @@ async function run(deviceRef: DeviceRef) {
 
   let stats = new MoveStats();
   let monitoring: Subscription | undefined;
+  let monitoringError: unknown;
 
   try {
     const start = await client.request.upload(deviceRef, 0x6064, 0);
@@ -120,18 +134,34 @@ async function run(deviceRef: DeviceRef) {
           [deviceRef, 0x60f4, 0], // following error actual value
           [deviceRef, 0x6077, 0], // torque actual value
         ],
-        interval
+        1000
       )
-      .subscribe((values) => {
-        const [time, position, followingError, torque] = values as number[];
-        stats.add(followingError, torque);
-        samplesFile?.write(`${time},${position},${followingError},${torque}\n`);
+      .subscribe({
+        next: (values) => {
+          const [time, position, followingError, torque] = values as number[];
+          stats.add(followingError, torque);
+          samplesFile?.write(`${time},${position},${followingError},${torque}\n`);
+        },
+        // Without an error handler, an error in the stream would end the process before the drive is quick stopped.
+        // With it, the run ends after the current move.
+        error: (err: unknown) => {
+          monitoringError = err;
+        },
       });
 
     console.log(`Running for ${hours} h between ${targets[1]} and ${targets[0]}. Summary: ${summary}`);
 
     for (let move = 1; Date.now() < end && !stopRequested; move++) {
       const target = targets[(move - 1) % 2];
+
+      // The move would enable a drive that something else has stopped since the last move.
+      if (move > 1) {
+        const state = await lastValueFrom(client.request.getCia402State(deviceRef));
+        if (state !== Cia402State.OPERATION_ENABLED) {
+          throw new Error(`Before move ${move} the drive is in ${state}: something stopped it, or it has a fault.`);
+        }
+      }
+
       const startedAt = Date.now();
       stats = new MoveStats();
 
@@ -145,6 +175,14 @@ async function run(deviceRef: DeviceRef) {
         skipQuickStop: true,
         targetReachTimeout: moveTimeout,
       });
+
+      if (monitoringError) {
+        throw new Error(`Monitoring failed: ${monitoringError instanceof Error ? monitoringError.message : monitoringError}`);
+      }
+      // A line of zeros would read like a perfect move.
+      if (stats.count === 0) {
+        throw new Error(`Move ${move} got no samples from monitoring, so its following error and torque are unknown.`);
+      }
 
       summaryFile.write(
         [
@@ -171,12 +209,6 @@ async function run(deviceRef: DeviceRef) {
     }
 
     console.log(`Finished. Largest following error ${runMaxima.followingError}, largest torque ${runMaxima.torque}.`);
-  } catch (err) {
-    const report = await client.request.upload<string>(deviceRef, 0x203f, 1).catch(() => undefined);
-    if (report) {
-      console.error(`Error report (0x203F:01): ${report}`);
-    }
-    throw err;
   } finally {
     monitoring?.unsubscribe();
     await client.request.quickStop(deviceRef).catch(() => undefined);
