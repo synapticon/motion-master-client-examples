@@ -14,13 +14,21 @@ no dependencies).
 1. Load a configuration file (`config.csv`), replacing the one on the drive (`--merge` merges it instead).
 2. Run offset detection: open phase detection, phase resistance and inductance, pole pairs, motor phase order,
    commutation offset.
-3. Calibrate the integrated encoders given with `--encoders` (default `1`), one after another.
-4. Measure the commutation offset again, since the calibration changes the position the encoder reports.
+3. Calibrate an integrated encoder.
+4. Measure the commutation offset again. Motion Master does that itself only when the software position limits
+   leave enough room, and otherwise only warns, which the HTTP API does not pass on.
 5. Save the configuration on the drive.
+
+Steps 3 and 4 run for every encoder given with `--encoders`, in that order. The option is required: `1` for one
+integrated encoder, `1,2` for two.
 
 Export the configuration file with OBLAC Drives from an actuator of the same build that was commissioned by hand.
 The encoder calibration turns the motor in velocity mode, so the file needs tuned velocity controller gains
-(OBLAC Drives asks for a bandwidth below 30 Hz). The motor turns in steps 2 to 4: the actuator has to be free to move.
+(OBLAC Drives asks for a bandwidth below 30 Hz). The file also carries the home offset and the software position
+limits of the actuator it was exported from. The motor turns in steps 2 to 4: the actuator has to be free to move.
+
+Ctrl-C stops the drive (the Python script with a quick stop), which ends a calibration or offset detection, and the
+script exits with code 1.
 
 ```console
 npx ts-node src/actuator/commission-circulo.ts --device-ref=0 --encoders=1,2 config.csv

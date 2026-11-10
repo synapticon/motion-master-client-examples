@@ -4,21 +4,25 @@
  *   1. Loads a configuration file (config.csv) onto the drive.
  *   2. Runs offset detection: open phase detection, phase resistance and inductance, pole pairs,
  *      motor phase order and commutation offset.
- *   3. Calibrates the Circulo integrated encoders, one after another.
- *   4. Measures the commutation offset again, because the calibration changes the position the encoder reports.
+ *   3. Calibrates a Circulo integrated encoder.
+ *   4. Measures the commutation offset again. Motion Master does that itself only when the software position
+ *      limits leave enough room, and otherwise only warns.
  *   5. Saves the configuration on the drive, so it is used after a power cycle.
+ *
+ * Steps 3 and 4 run for every encoder given with --encoders, in that order.
  *
  * The configuration file is usually exported with OBLAC Drives from an actuator of the same build that was
  * commissioned by hand. Encoder calibration turns the motor in velocity mode, so the file has to contain tuned
  * velocity controller gains (OBLAC Drives asks for a bandwidth below 30 Hz).
  *
  * The motor turns during offset detection and calibration: run this on a bench where the actuator can move freely.
+ * Ctrl-C stops the drive, which ends a calibration or offset detection, and exits with code 1.
  *
  * Usage:
- *   npx ts-node src/actuator/commission-circulo.ts --device-ref=0 path/to/config.csv
+ *   npx ts-node src/actuator/commission-circulo.ts --device-ref=0 --encoders=1 path/to/config.csv
  *   npx ts-node src/actuator/commission-circulo.ts --device-ref=0 --encoders=1,2 path/to/config.csv
  */
-import { Argument, Option, program } from "commander";
+import { Argument, InvalidArgumentError, Option, program } from "commander";
 import { readFileSync } from "fs";
 import { lastValueFrom, tap } from "rxjs";
 import {
@@ -32,25 +36,44 @@ import {
 
 import { client } from "../init-client";
 
+const ordinals = (value: string) => {
+  const ordinals = value.split(",").map((ordinal) => Number(ordinal));
+  if (ordinals.some((ordinal) => !Number.isInteger(ordinal) || ordinal < 1)) {
+    throw new InvalidArgumentError("Expected ordinals separated by commas, for example 1,2.");
+  }
+  return ordinals;
+};
+
 program
   .addArgument(new Argument("<configFile>", "configuration file to load, for example a config.csv exported with OBLAC Drives"))
   .addOption(
     new Option("--encoders <ordinals>", "comma-separated ordinals of the integrated encoders to calibrate, in that order")
-      .default("1")
+      .argParser(ordinals)
+      .makeOptionMandatory()
   )
   .addOption(new Option("--merge", "merge the file into the configuration on the drive instead of replacing it"));
 
 program.parse();
 
-const { deviceRef, encoders, merge } = program.opts();
-const [configFile] = program.processedArgs as [string];
-const encoderOrdinals = String(encoders)
-  .split(",")
-  .map((value) => parseInt(value.trim(), 10));
-
 // Motion Master reports the calibration every iteration. A slow calibration of the output-side encoder of a
-// geared actuator can take minutes between two reports.
-const calibrationTimeout = 600000;
+// geared actuator can take minutes between two reports, hence the long default request timeout.
+const { deviceRef, encoders, merge, requestTimeout = 600000, messageId } = program.opts();
+const [configFile] = program.processedArgs as [string];
+
+// Ctrl-C stops the drive, as Stop does in OBLAC Drives. Motion Master ends a calibration, and offset detection stops
+// before its next step, once the drive leaves Operation Enabled. Without the stop, both would go on after the
+// script has exited.
+let interrupted = false;
+process.on("SIGINT", async () => {
+  if (interrupted) {
+    return;
+  }
+  interrupted = true;
+  console.log("\nStopping the drive...");
+  await lastValueFrom(client.request.stopDevice(makeDeviceRefObj(deviceRef), 10000)).catch(() => undefined);
+  client.closeSockets();
+  process.exit(1);
+});
 
 client
   .whenReady()
@@ -62,16 +85,17 @@ client
     console.log("2. Running offset detection...");
     await runOffsetDetection(deviceRef, []);
 
-    for (const encoderOrdinal of encoderOrdinals) {
+    for (const encoderOrdinal of encoders as number[]) {
       console.log(`3. Calibrating integrated encoder ${encoderOrdinal}...`);
       await calibrateEncoder(deviceRef, encoderOrdinal);
-    }
 
-    // Motion Master already measures the commutation offset at the end of the calibration of the encoder used
-    // for commutation, but only when the software position limits leave enough room, and only warns otherwise.
-    // Measuring it here as well makes the result the same in both cases. It moves the motor no more than step 2.
-    console.log("4. Measuring the commutation offset again...");
-    await runOffsetDetection(deviceRef, ["commutationOffsetMeasurement"]);
+      // Motion Master measures the commutation offset again itself at the end of the calibration of the encoder
+      // used for commutation, but only when the software position limits leave enough room. Otherwise it only
+      // warns. Measuring it after every calibration makes the result the same in every case. It moves the motor
+      // no more than step 2.
+      console.log("4. Measuring the commutation offset again...");
+      await runOffsetDetection(deviceRef, ["commutationOffsetMeasurement"]);
+    }
 
     console.log("5. Saving the configuration...");
     await lastValueFrom(client.request.saveConfig(deviceRef));
@@ -82,7 +106,12 @@ client
     console.error(`FAILED: ${err instanceof Error ? err.message : err}`);
     process.exitCode = 1;
   })
-  .finally(() => client.closeSockets());
+  .finally(() => {
+    // After Ctrl-C the SIGINT handler closes the sockets, once the stop has been sent.
+    if (!interrupted) {
+      client.closeSockets();
+    }
+  });
 
 /**
  * Runs the given offset detection steps (all of them when the list is empty), prints every step once it finishes,
@@ -106,13 +135,6 @@ async function runOffsetDetection(deviceRef: DeviceRef, stepIds: OffsetDetection
   );
 
   const failed = steps.filter((step) => step.status === "failed").map((step) => step.label);
-
-  // Open phase detection succeeds when it could measure, and its value says whether a phase is open.
-  const openPhase = steps.find((step) => step.id === "openPhaseDetection");
-  if (openPhase?.status === "succeeded" && openPhase.value === true) {
-    failed.push("Open Phase Detection (a motor phase is open)");
-  }
-
   if (failed.length > 0) {
     throw new Error(`Offset detection failed: ${failed.join(", ")}`);
   }
@@ -125,17 +147,16 @@ async function runOffsetDetection(deviceRef: DeviceRef, stepIds: OffsetDetection
 async function calibrateEncoder(deviceRef: DeviceRef, encoderOrdinal: number): Promise<void> {
   const deviceRefObj = makeDeviceRefObj(deviceRef);
 
-  // The calibration starts from a stopped drive.
-  await lastValueFrom(client.request.stopDevice(deviceRefObj, 10000));
-
   const status: CirculoEncoderNarrowAngleCalibrationProcedureStatus = await lastValueFrom(
-    client.request.startCirculoEncoderNarrowAngleCalibrationProcedure({ ...deviceRefObj, encoderOrdinal }, calibrationTimeout).pipe(
+    client.request.startCirculoEncoderNarrowAngleCalibrationProcedure({ ...deviceRefObj, encoderOrdinal }, requestTimeout, messageId).pipe(
       tap((status) => {
         const result = computeCirculoEncoderCalibrationProgressResult(status.progress);
         if (result) {
-          // Only the final iteration rates the finished calibration.
-          const final = status.progress?.final ? " [final]" : "";
-          console.log(`   Iteration ${status.progress?.iteration}: ${result.meaning} (${result.value}%)${final}`);
+          // Only the final iteration rates the finished calibration. The earlier ones measure an encoder that is
+          // still being calibrated.
+          const iteration = status.progress?.iteration != null ? ` ${status.progress.iteration}` : "";
+          const meaning = status.progress?.final ? ` [final] ${result.meaning}` : "";
+          console.log(`   Iteration${iteration}: ${result.value}%${meaning}`);
         }
 
         // For example: the absolute position changed, so homing and the software position limits have to be checked.
