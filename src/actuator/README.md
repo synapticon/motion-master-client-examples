@@ -6,8 +6,8 @@ no dependencies).
 
 | Routine | Client library | HTTP API |
 |---|---|---|
-| Commission one actuator | `commission-circulo.ts` | `http/commission_circulo.py` |
-| Run it back and forth for 48 hours, logging following error and torque | `endurance-position-profile.ts` | `http/endurance_position_profile.py` |
+| Commission one actuator | `commission-circulo.ts` | `commission-circulo.py` |
+| Run it back and forth for 48 hours, logging following error and torque | `endurance-position-profile.ts` | `endurance-position-profile.py` |
 
 ## Commissioning
 
@@ -24,7 +24,7 @@ The encoder calibration turns the motor in velocity mode, so the file needs tune
 
 ```console
 npx ts-node src/actuator/commission-circulo.ts --device-ref=0 --encoders=1,2 config.csv
-python3 src/actuator/http/commission_circulo.py --device-ref 0 --encoders 1,2 config.csv
+python3 src/actuator/commission-circulo.py --device-ref 0 --encoders 1,2 config.csv
 ```
 
 ## Endurance run
@@ -40,7 +40,7 @@ quick stops the drive, prints the error report (0x203F:01) and exits with code 1
 
 ```console
 npx ts-node src/actuator/endurance-position-profile.ts --device-ref=0 --distance=100000 --velocity=1000
-python3 src/actuator/http/endurance_position_profile.py --device-ref 0 --distance 100000 --velocity 1000
+python3 src/actuator/endurance-position-profile.py --device-ref 0 --distance 100000 --velocity 1000
 ```
 
 Units are the drive's: positions and the following error in position units, the torque in per mille of the rated

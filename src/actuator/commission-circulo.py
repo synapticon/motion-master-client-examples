@@ -19,8 +19,8 @@ The motor turns during offset detection and calibration: run this on a bench whe
 The HTTP API has to be running (OBLAC Drives starts it on port 63526) and Motion Master has to be started.
 
 Usage:
-  python3 src/actuator/http/commission_circulo.py --device-ref 0 path/to/config.csv
-  python3 src/actuator/http/commission_circulo.py --device-ref 0 --encoders 1,2 path/to/config.csv
+  python3 src/actuator/commission-circulo.py --device-ref 0 path/to/config.csv
+  python3 src/actuator/commission-circulo.py --device-ref 0 --encoders 1,2 path/to/config.csv
 """
 import argparse
 import json

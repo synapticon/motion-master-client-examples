@@ -22,8 +22,8 @@ stops the drive, prints the error report and exits with code 1.
 The HTTP API has to be running (OBLAC Drives starts it on port 63526) and Motion Master has to be started.
 
 Usage:
-  python3 src/actuator/http/endurance_position_profile.py --device-ref 0 --distance 100000 --velocity 1000
-  python3 src/actuator/http/endurance_position_profile.py --device-ref 0 --hours 0.1 --samples samples.csv
+  python3 src/actuator/endurance-position-profile.py --device-ref 0 --distance 100000 --velocity 1000
+  python3 src/actuator/endurance-position-profile.py --device-ref 0 --hours 0.1 --samples samples.csv
 """
 import argparse
 import csv
