@@ -42,7 +42,7 @@ python3 src/actuator/commission-circulo.py --device-ref 0 --encoders 1,2 config.
 The actuator moves between its start position and the start position plus `--distance`, waits `--dwell` ms at
 each end, and stays enabled for `--hours` (default 48). Both targets are absolute, so it does not drift.
 `--distance`, `--velocity` and `--acceleration` are required, because what a value means depends on how the
-actuator is configured.
+actuator is configured. `--deceleration` is the same as `--acceleration` unless given.
 
 Every move adds one line to the summary CSV: the largest following error (0x60F4), the largest and the RMS torque
 (0x6077), from a sample every millisecond. `duration_ms` and the RMS torque cover the whole move: the parameter

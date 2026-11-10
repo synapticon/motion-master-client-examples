@@ -5,7 +5,8 @@
  * The actuator moves between its position at the start and that position plus --distance, waiting --dwell
  * milliseconds at each end. The drive stays in Operation Enabled for the whole run. Both targets are absolute,
  * so the actuator does not drift away over thousands of moves. --distance, --velocity and --acceleration have no
- * default, because what a value means depends on how the actuator is configured.
+ * default, because what a value means depends on how the actuator is configured. --deceleration is the same as
+ * --acceleration unless given.
  *
  * Motion Master streams the following error (0x60F4), the torque actual value (0x6077) and the position actual
  * value (0x6064) every millisecond. The script keeps no samples in memory: it writes one line per move to the
@@ -47,7 +48,7 @@ program
   .addOption(new Option("--distance <n>", "distance of one move, in position units").argParser(number).makeOptionMandatory())
   .addOption(new Option("--velocity <n>", "profile velocity (0x6081)").argParser(number).makeOptionMandatory())
   .addOption(new Option("--acceleration <n>", "profile acceleration (0x6083)").argParser(number).makeOptionMandatory())
-  .addOption(new Option("--deceleration <n>", "profile deceleration (0x6084)").argParser(number).default(10000))
+  .addOption(new Option("--deceleration <n>", "profile deceleration (0x6084), the same as --acceleration unless given").argParser(number))
   .addOption(new Option("--dwell <ms>", "how long to wait at each end").argParser(number).default(500))
   .addOption(new Option("--move-timeout <ms>", "how long one move may take").argParser(number).default(30000))
   .addOption(new Option("--summary <file>", "one line per move").default(`endurance-${timestamp()}.csv`))
@@ -80,9 +81,17 @@ class MoveStats {
 let stopRequested = false;
 process.on("SIGINT", async () => {
   if (stopRequested) {
-    // The move that is running would end with the drive still enabled. Quick stop it, but do not wait for long.
+    // The move that is running would end with the drive still enabled, and a move that is only starting can enable
+    // it again right after a quick stop. So quick stop, look again 200 ms later, but do not wait for long.
     console.log("\nQuick stopping the drive...");
-    await Promise.race([client.request.quickStop(deviceRef).catch(() => undefined), resolveAfter(3000)]);
+    const quickStop = () => client.request.quickStop(deviceRef).catch(() => undefined);
+    const quickStopAndCheck = async () => {
+      await quickStop();
+      await resolveAfter(200);
+      // quickStop checks the state first, and does nothing unless the drive is enabled.
+      await quickStop();
+    };
+    await Promise.race([quickStopAndCheck(), resolveAfter(3000)]);
     process.exit(1);
   }
   stopRequested = true;
@@ -169,7 +178,7 @@ async function run(deviceRef: DeviceRef) {
         target,
         velocity,
         acceleration,
-        deceleration,
+        deceleration: deceleration ?? acceleration,
         holdingDuration: dwell,
         relative: false,
         skipQuickStop: true,

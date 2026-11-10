@@ -7,7 +7,8 @@ Runs an actuator back and forth in Profile Position Mode through the Motion Mast
 The actuator moves between its position at the start and that position plus --distance, waiting --dwell
 milliseconds at each end. The drive stays in Operation Enabled for the whole run. Both targets are absolute,
 so the actuator does not drift away over thousands of moves. --distance, --velocity and --acceleration have no
-default, because what a value means depends on how the actuator is configured.
+default, because what a value means depends on how the actuator is configured. --deceleration is the same as
+--acceleration unless given.
 
 Every move is one call to run-position-profile, which answers with the samples Motion Master recorded during
 the move, every millisecond, as CSV. The script writes one line per move to the summary file (largest following
@@ -88,6 +89,12 @@ class Api:
             # The response was cut short, or it is not the JSON or text it says it is.
             raise ApiError(f"{method} {path} gave an unreadable response: {e}") from None
 
+    def get_field(self, path: str, field: str, timeout: float = 60):
+        response = self.request("GET", path, timeout=timeout)
+        if not isinstance(response, dict) or field not in response:
+            raise ApiError(f"GET {path} gave no {field}: {response}")
+        return response[field]
+
     def connect(self, motion_master_host: str):
         try:
             self.request("GET", f"/connect/{motion_master_host}", timeout=15)
@@ -121,7 +128,7 @@ def run(api: Api, device: str, args: argparse.Namespace):
     try:
         api.connect(args.motion_master)
 
-        start = api.request("GET", f"/devices/{device}/upload/0x6064/0x00")["value"]
+        start = api.get_field(f"/devices/{device}/upload/0x6064/0x00", "value")
         targets = [start + args.distance, start]
         run_start = time.monotonic()
         end = run_start + args.hours * 3600
@@ -137,7 +144,7 @@ def run(api: Api, device: str, args: argparse.Namespace):
 
             # The move would enable a drive that something else has stopped since the last move.
             if move > 1:
-                state = api.request("GET", f"/devices/{device}/cia402-state")["state"]
+                state = api.get_field(f"/devices/{device}/cia402-state", "state")
                 if state != "OPERATION_ENABLED":
                     raise ApiError(f"Before move {move} the drive is in {state}: something stopped it, or it has a fault.")
 
@@ -214,19 +221,22 @@ def run(api: Api, device: str, args: argparse.Namespace):
 def main():
     parser = argparse.ArgumentParser(description="Run an actuator back and forth in Profile Position Mode.",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    # argparse.SUPPRESS keeps "(default: None)" out of --help. The values of the optional ones are filled in below.
     parser.add_argument("--device-ref", default="0", help="position, address or serial number of the drive (0 is the first drive)")
     parser.add_argument("--hours", type=float, default=48, help="how long to run")
     parser.add_argument("--distance", type=int, required=True, default=argparse.SUPPRESS, help="distance of one move, in position units")
     parser.add_argument("--velocity", type=int, required=True, default=argparse.SUPPRESS, help="profile velocity (0x6081)")
     parser.add_argument("--acceleration", type=int, required=True, default=argparse.SUPPRESS, help="profile acceleration (0x6083)")
-    parser.add_argument("--deceleration", type=int, default=10000, help="profile deceleration (0x6084)")
+    parser.add_argument("--deceleration", type=int, default=argparse.SUPPRESS, help="profile deceleration (0x6084), the same as --acceleration unless given")
     parser.add_argument("--dwell", type=int, default=500, help="how long to wait at each end, in ms")
     parser.add_argument("--move-timeout", type=int, default=30000, help="how long one move may take, in ms")
     parser.add_argument("--summary", default=f"endurance-{datetime.now(timezone.utc):%Y-%m-%dT%H-%M-%S}.csv", help="one line per move")
-    parser.add_argument("--samples", help="every recorded sample (large)")
+    parser.add_argument("--samples", default=argparse.SUPPRESS, help="every recorded sample (large)")
     parser.add_argument("--api", default="http://localhost:63526/api", help="HTTP API base URL")
     parser.add_argument("--motion-master", default="127.0.0.1", help="host Motion Master runs on, as seen from the HTTP API")
     args = parser.parse_args()
+    args.deceleration = getattr(args, "deceleration", args.acceleration)
+    args.samples = getattr(args, "samples", None)
 
     api = Api(args.api)
     device = urllib.parse.quote(str(args.device_ref))
@@ -240,7 +250,7 @@ def main():
         # The drive is quick stopped by now. This is the last report the drive logged, so after a timeout without
         # a fault it can be an older one.
         try:
-            report = api.request("GET", f"/devices/{device}/upload/0x203F/0x01")["value"]
+            report = api.get_field(f"/devices/{device}/upload/0x203F/0x01", "value")
             print(f"Last error report (0x203F:01): {report}", file=sys.stderr)
         except (ApiError, OSError):
             pass
