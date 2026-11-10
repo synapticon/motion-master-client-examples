@@ -7,8 +7,9 @@ Commissions an actuator with a SOMANET Circulo drive through the Motion Master H
   2. Runs offset detection: open phase detection, phase resistance and inductance, pole pairs,
      motor phase order and commutation offset.
   3. Calibrates a Circulo integrated encoder.
-  4. Measures the commutation offset again. Motion Master does that itself only when the software position
-     limits leave enough room, and otherwise only warns, which the HTTP API does not pass on.
+  4. Measures the commutation offset again. Motion Master does that itself after calibrating the encoder used
+     for commutation, but only when the software position limits leave enough room, and otherwise only warns,
+     which the HTTP API does not pass on.
   5. Saves the configuration on the drive, so it is used after a power cycle.
 
 Steps 3 and 4 run for every encoder given with --encoders, in that order.
@@ -18,7 +19,8 @@ commissioned by hand. Encoder calibration turns the motor in velocity mode, so t
 velocity controller gains (OBLAC Drives asks for a bandwidth below 30 Hz).
 
 The motor turns during offset detection and calibration: run this on a bench where the actuator can move freely.
-Ctrl-C quick stops the drive, which ends a calibration or offset detection, and exits with code 1.
+Ctrl-C quick stops the drive and keeps it stopped for 3 s, which ends a calibration or offset detection, even one
+that has only just started, then exits with code 1. It says so if it could not confirm that the drive is stopped.
 
 The HTTP API has to be running (OBLAC Drives starts it on port 63526) and Motion Master has to be started.
 
@@ -29,7 +31,9 @@ Usage:
 import argparse
 import http.client
 import json
+import signal
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -72,6 +76,12 @@ class Api:
         except (http.client.HTTPException, ValueError) as e:
             # The response was cut short, or it is not the JSON or text it says it is.
             raise ApiError(f"{method} {path} gave an unreadable response: {e}") from None
+
+    def get_field(self, path: str, field: str, timeout: float = 60):
+        response = self.request("GET", path, timeout=timeout)
+        if not isinstance(response, dict) or field not in response:
+            raise ApiError(f"GET {path} gave no {field}: {response}")
+        return response[field]
 
     def connect(self, motion_master_host: str):
         try:
@@ -119,19 +129,47 @@ def calibrate_encoder(api: Api, device_ref: str, encoder_ordinal: int):
         {"encoder-ordinal": encoder_ordinal, "request-timeout": 600000},
         timeout=3600,
     )
-    for i, iteration in enumerate(iterations, start=1):
+    for iteration in iterations:
         result = iteration["result"]
+        # The HTTP API sends iteration 0 when Motion Master does not number the iterations.
+        number = f" {iteration['iteration']}" if iteration.get("iteration") else ""
         # Only the final iteration rates the finished calibration. The earlier ones measure an encoder that is
         # still being calibrated.
         meaning = f" [final] {result['meaning']}" if iteration.get("final") else ""
-        print(f"   Iteration {iteration.get('iteration', i)}: {result['value']}%{meaning}")
+        print(f"   Iteration{number}: {result['value']}%{meaning}")
+
+
+def stop_drive(api: Api, device_ref: str) -> bool:
+    """Quick stops the drive whenever it is enabled during the next 3 s, and returns whether it is stopped then.
+
+    The HTTP API goes on with a calibration or offset detection after the script has gone. Motion Master ends a
+    calibration, and offset detection stops before its next step, once the drive leaves Operation Enabled. One that
+    has only just started enables the drive a moment later, though, and the HTTP API refuses a quick stop until then.
+    """
+    def state():
+        try:
+            return api.get_field(f"/devices/{device_ref}/cia402-state", "state", timeout=2)
+        except (ApiError, OSError):
+            return None
+
+    end = time.monotonic() + 3
+    while time.monotonic() < end:
+        if state() == "OPERATION_ENABLED":
+            try:
+                api.request("GET", f"/devices/{device_ref}/quick-stop", timeout=10)
+            except (ApiError, OSError):
+                pass
+        time.sleep(0.1)
+    return state() not in (None, "OPERATION_ENABLED")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Commission a SOMANET Circulo actuator through the HTTP API.")
+    parser = argparse.ArgumentParser(description="Commission a SOMANET Circulo actuator through the HTTP API.",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    # argparse.SUPPRESS keeps "(default: None)" out of --help.
     parser.add_argument("config_file", type=Path, help="configuration file to load, for example a config.csv exported with OBLAC Drives")
-    parser.add_argument("--device-ref", default="0", help="position, address or serial number of the drive (default: 0, the first drive)")
-    parser.add_argument("--encoders", type=encoder_ordinals, required=True, help="comma-separated ordinals of the integrated encoders to calibrate, in that order")
+    parser.add_argument("--device-ref", default="0", help="position, address or serial number of the drive (0 is the first drive)")
+    parser.add_argument("--encoders", type=encoder_ordinals, required=True, default=argparse.SUPPRESS, help="comma-separated ordinals of the integrated encoders to calibrate, in that order")
     parser.add_argument("--merge", action="store_true", help="merge the file into the configuration on the drive instead of replacing it")
     parser.add_argument("--api", default="http://localhost:63526/api", help="HTTP API base URL")
     parser.add_argument("--motion-master", default="127.0.0.1", help="host Motion Master runs on, as seen from the HTTP API")
@@ -171,14 +209,14 @@ def main():
 
         print("Done.")
     except KeyboardInterrupt:
-        # The HTTP API goes on with a calibration or offset detection after the script has gone. Motion Master
-        # ends a calibration, and offset detection stops before its next step, once the drive leaves Operation
-        # Enabled.
-        print("\nStopping the drive...", file=sys.stderr)
-        try:
-            api.request("GET", f"/devices/{device}/quick-stop", timeout=10)
-        except (ApiError, OSError):
-            pass
+        # Another Ctrl-C must not cut the stop short.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        print("\nStopping the drive and watching it for 3 s...", file=sys.stderr)
+        if stop_drive(api, device):
+            print("FAILED: commissioning stopped with Ctrl-C.", file=sys.stderr)
+        else:
+            print("FAILED: commissioning stopped with Ctrl-C. Could not confirm that the drive is stopped: "
+                  "check it in OBLAC Drives.", file=sys.stderr)
         sys.exit(1)
     except (ApiError, OSError) as e:
         print(f"FAILED: {e}", file=sys.stderr)
