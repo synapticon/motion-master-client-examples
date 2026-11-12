@@ -2,6 +2,8 @@
 
 This repository provides TypeScript/JavaScript examples for interacting with Synapticon's Motion Master server application to configure and control SOMANET devices.
 
+To commission SOMANET Circulo actuators and run 48-hour endurance tests, with the client library or in Python with the HTTP API, see [src/actuator/README.md](src/actuator/README.md).
+
 ## Building
 
 ### Node on the PATH
