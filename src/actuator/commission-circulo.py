@@ -25,8 +25,8 @@ that has only just started, then exits with code 1. It says so if it could not c
 The HTTP API has to be running (OBLAC Drives starts it on port 63526) and Motion Master has to be started.
 
 Usage:
-  python3 src/actuator/commission-circulo.py --device-ref 0 --encoders 1 path/to/config.csv
-  python3 src/actuator/commission-circulo.py --device-ref 0 --encoders 1,2 path/to/config.csv
+  python3 src/actuator/commission-circulo.py --device-ref 1 --encoders 1 path/to/config.csv
+  python3 src/actuator/commission-circulo.py --device-ref 1 --encoders 1,2 path/to/config.csv
 """
 import argparse
 import http.client
@@ -167,7 +167,7 @@ def main():
     parser = argparse.ArgumentParser(description="Commission a SOMANET Circulo actuator through the HTTP API.",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("config_file", type=Path, help="configuration file to load, for example a config.csv exported with OBLAC Drives")
-    parser.add_argument("--device-ref", default="0", help="position, address or serial number of the drive (0 is the first drive)")
+    parser.add_argument("--device-ref", default="1", help="position, address or serial number of the drive (1 is the first drive)")
     # argparse.SUPPRESS keeps "(default: None)" out of --help.
     parser.add_argument("--encoders", type=encoder_ordinals, required=True, default=argparse.SUPPRESS, help="comma-separated ordinals of the integrated encoders to calibrate, in that order")
     parser.add_argument("--merge", action="store_true", help="merge the file into the configuration on the drive instead of replacing it")

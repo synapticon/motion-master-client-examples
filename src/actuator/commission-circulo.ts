@@ -20,8 +20,8 @@
  * has only just started, then exits with code 1. It says so if it could not confirm that the drive is stopped.
  *
  * Usage:
- *   npx ts-node src/actuator/commission-circulo.ts --device-ref=0 --encoders=1 path/to/config.csv
- *   npx ts-node src/actuator/commission-circulo.ts --device-ref=0 --encoders=1,2 path/to/config.csv
+ *   npx ts-node src/actuator/commission-circulo.ts --device-ref=1 --encoders=1 path/to/config.csv
+ *   npx ts-node src/actuator/commission-circulo.ts --device-ref=1 --encoders=1,2 path/to/config.csv
  */
 import { Argument, InvalidArgumentError, Option, program } from "commander";
 import { readFileSync } from "fs";

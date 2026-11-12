@@ -33,8 +33,8 @@ has only just started enables the drive a moment later, so the script watches th
 whenever it is enabled. It then exits with code 1, and says so if it could not confirm that the drive is stopped.
 
 ```console
-npx ts-node src/actuator/commission-circulo.ts --device-ref=0 --encoders=1,2 config.csv
-python3 src/actuator/commission-circulo.py --device-ref 0 --encoders 1,2 config.csv
+npx ts-node src/actuator/commission-circulo.ts --device-ref=1 --encoders=1,2 config.csv
+python3 src/actuator/commission-circulo.py --device-ref 1 --encoders 1,2 config.csv
 ```
 
 ## Endurance run
@@ -61,8 +61,8 @@ stops the drive at once and quits. The Python script has no such shortcut: the H
 started even when the script is gone, and enables the drive for it, so the script waits for the move to end.
 
 ```console
-npx ts-node src/actuator/endurance-position-profile.ts --device-ref=0 --distance=100000 --velocity=1000 --acceleration=10000
-python3 src/actuator/endurance-position-profile.py --device-ref 0 --distance 100000 --velocity 1000 --acceleration 10000
+npx ts-node src/actuator/endurance-position-profile.ts --device-ref=1 --distance=100000 --velocity=1000 --acceleration=10000
+python3 src/actuator/endurance-position-profile.py --device-ref 1 --distance 100000 --velocity 1000 --acceleration 10000
 ```
 
 Units are the drive's: positions and the following error in position units, the torque in per mille of the rated

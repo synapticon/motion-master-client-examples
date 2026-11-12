@@ -29,8 +29,8 @@ code 1.
 The HTTP API has to be running (OBLAC Drives starts it on port 63526) and Motion Master has to be started.
 
 Usage:
-  python3 src/actuator/endurance-position-profile.py --device-ref 0 --distance 100000 --velocity 1000 --acceleration 10000
-  python3 src/actuator/endurance-position-profile.py --device-ref 0 --distance 100000 --velocity 1000 --acceleration 10000 --hours 0.1 --samples samples.csv
+  python3 src/actuator/endurance-position-profile.py --device-ref 1 --distance 100000 --velocity 1000 --acceleration 10000
+  python3 src/actuator/endurance-position-profile.py --device-ref 1 --distance 100000 --velocity 1000 --acceleration 10000 --hours 0.1 --samples samples.csv
 """
 import argparse
 import csv
@@ -222,7 +222,7 @@ def main():
     parser = argparse.ArgumentParser(description="Run an actuator back and forth in Profile Position Mode.",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # argparse.SUPPRESS keeps "(default: None)" out of --help. The values of the optional ones are filled in below.
-    parser.add_argument("--device-ref", default="0", help="position, address or serial number of the drive (0 is the first drive)")
+    parser.add_argument("--device-ref", default="1", help="position, address or serial number of the drive (1 is the first drive)")
     parser.add_argument("--hours", type=float, default=48, help="how long to run")
     parser.add_argument("--distance", type=int, required=True, default=argparse.SUPPRESS, help="distance of one move, in position units")
     parser.add_argument("--velocity", type=int, required=True, default=argparse.SUPPRESS, help="profile velocity (0x6081)")

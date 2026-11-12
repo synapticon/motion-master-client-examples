@@ -25,8 +25,8 @@
  * prints the last error report and exits with code 1.
  *
  * Usage:
- *   npx ts-node src/actuator/endurance-position-profile.ts --device-ref=0 --distance=100000 --velocity=1000 --acceleration=10000
- *   npx ts-node src/actuator/endurance-position-profile.ts --device-ref=0 --distance=100000 --velocity=1000 --acceleration=10000 --hours=0.1 --samples=samples.csv
+ *   npx ts-node src/actuator/endurance-position-profile.ts --device-ref=1 --distance=100000 --velocity=1000 --acceleration=10000
+ *   npx ts-node src/actuator/endurance-position-profile.ts --device-ref=1 --distance=100000 --velocity=1000 --acceleration=10000 --hours=0.1 --samples=samples.csv
  */
 import { InvalidArgumentError, Option, program } from "commander";
 import { createWriteStream, WriteStream } from "fs";
