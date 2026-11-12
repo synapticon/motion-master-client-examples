@@ -46,7 +46,7 @@ export function logStringified(status: any) {
 program
   .addOption(
     new Option('-d, --device-ref <value>', 'position, address, or serial number')
-      .default(0, '0 position represents the first device in a network chain')
+      .default(1, '1 position represents the first device in a network chain')
       .argParser((value: string) => {
         const n = Number(value);
         return isNaN(n) ? value : n;
